@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mike Maitland — Task Organiser</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #181c24;
+    --panel-2: #1f2530;
+    --ink: #e7ecf3;
+    --muted: #9aa4b2;
+    --accent: #7c5cff;
+    --border: #2a3142;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; line-height: 1.45; }
+  header { padding: 36px 28px 18px; background: linear-gradient(135deg, #1a1330 0%, #0f1115 60%); border-bottom: 1px solid var(--border); }
+  header h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; max-width: 900px; }
+  .meta { margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .meta span { display: inline-block; margin-right: 14px; }
+  .legend { max-width: 1280px; margin: 14px auto 0; padding: 0 24px; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .legend strong { color: var(--ink); margin-right: 4px; }
+  .toolbar { max-width: 1280px; margin: 12px auto 0; padding: 0 24px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .filter-btn { background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
+  .filter-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .filter-btn:hover { color: var(--ink); }
+  button.reset { background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 12px; margin-left: auto; }
+  button.reset:hover { color: var(--ink); border-color: var(--accent); }
+  main { max-width: 1280px; margin: 0 auto; padding: 18px 24px 40px; display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 18px; }
+  section.card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; }
+  section.card.priority { border-color: rgba(255,107,107,0.4); box-shadow: 0 0 0 1px rgba(255,107,107,0.12); }
+  section.card.stop { border-color: rgba(255,107,107,0.5); background: linear-gradient(180deg, #2a1a1f 0%, #181c24 100%); }
+  section.card h2 { margin: 0 0 4px; font-size: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  section.card .tag { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+  ul.tasks { list-style: none; padding: 0; margin: 0; }
+  ul.tasks li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 6px; border-radius: 8px; font-size: 14px; border-bottom: 1px dashed rgba(255,255,255,0.04); flex-wrap: wrap; }
+  ul.tasks li:last-child { border-bottom: none; }
+  ul.tasks li:hover { background: var(--panel-2); }
+  ul.tasks li input[type="checkbox"] { margin-top: 3px; accent-color: var(--accent); cursor: pointer; }
+  ul.tasks li label { cursor: pointer; flex: 1; min-width: 0; }
+  ul.tasks li.done label { text-decoration: line-through; color: var(--muted); }
+  .task-text { display: block; margin-bottom: 4px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+  .badge { font-size: 10px; padding: 2px 7px; border-radius: 999px; border: 1px solid; line-height: 1.4; white-space: nowrap; }
+  .b-project { background: rgba(124,92,255,0.12); color:#b6a4ff; border-color: rgba(124,92,255,0.35); }
+  .b-quick   { background: rgba(33,212,164,0.12); color:#7df0c8; border-color: rgba(33,212,164,0.35); }
+  .b-money   { background: rgba(255,205,84,0.12); color:#ffd87d; border-color: rgba(255,205,84,0.4); }
+  .b-infra   { background: rgba(150,160,180,0.10); color:#c7cdda; border-color: rgba(150,160,180,0.3); }
+  .b-short   { background: rgba(255,107,107,0.12); color:#ffb1b1; border-color: rgba(255,107,107,0.35); }
+  .b-medium  { background: rgba(255,180,84,0.12); color:#ffd29b; border-color: rgba(255,180,84,0.35); }
+  .b-long    { background: rgba(92,180,255,0.12); color:#a4d4ff; border-color: rgba(92,180,255,0.35); }
+  .b-leverage{ background: rgba(33,212,164,0.10); color:#9ae8cc; border-color: rgba(33,212,164,0.3); }
+  .b-self    { background: rgba(180,140,255,0.10); color:#cdb8ff; border-color: rgba(180,140,255,0.3); }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(124,92,255,0.15); color: #b6a4ff; border: 1px solid rgba(124,92,255,0.3); }
+  .pill.biz { background: rgba(33,212,164,0.12); color:#7df0c8; border-color: rgba(33,212,164,0.3); }
+  .pill.life { background: rgba(255,180,84,0.12); color:#ffd29b; border-color: rgba(255,180,84,0.3); }
+  .pill.urgent { background: rgba(255,107,107,0.12); color:#ffb1b1; border-color: rgba(255,107,107,0.3); }
+  .pill.stop { background: rgba(255,107,107,0.18); color:#ffb1b1; border-color: rgba(255,107,107,0.5); }
+  .pill.dash { background: rgba(92,180,255,0.12); color:#a4d4ff; border-color: rgba(92,180,255,0.3); }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mike Maitland — Task Organiser</h1>
+  <p>All captured tasks across TEFL Heaven, content, websites and personal life — tagged by type, money impact, horizon, and whether you can leverage others. Filter to focus.</p>
+  <div class="meta">
+    <span>📅 Updated 23 Apr 2026</span>
+    <span id="count">0 of 0 done</span>
+  </div>
+</header>
+
+<div class="legend">
+  <strong>Legend:</strong>
+  <span class="badge b-project">project</span>
+  <span class="badge b-quick">quick task</span>
+  <span class="badge b-money">$ money-maker</span>
+  <span class="badge b-infra">infra/personal</span>
+  <span class="badge b-short">short-term</span>
+  <span class="badge b-medium">mid-term</span>
+  <span class="badge b-long">long-term</span>
+  <span class="badge b-leverage">delegate</span>
+  <span class="badge b-self">you only</span>
+</div>
+
+<div class="toolbar" id="filters">
+  <span style="color:var(--muted);font-size:12px;margin-right:6px;">Filter:</span>
+  <button class="filter-btn active" data-f="all">All</button>
+  <button class="filter-btn" data-f="money">$ Money-makers</button>
+  <button class="filter-btn" data-f="quick">Quick tasks</button>
+  <button class="filter-btn" data-f="project">Projects</button>
+  <button class="filter-btn" data-f="short">Short-term</button>
+  <button class="filter-btn" data-f="medium">Mid-term</button>
+  <button class="filter-btn" data-f="long">Long-term</button>
+  <button class="filter-btn" data-f="leverage">Delegatable</button>
+  <button class="filter-btn" data-f="self">You only</button>
+  <button class="reset" onclick="resetAll()">Reset progress</button>
+</div>
+
+<main id="board"></main>
+
+<footer>One-page task organiser · Tier-1 = highest ROI. Stop-doing list = bandwidth recovery.</footer>
+
+<script>
+// tags: P=project, Q=quick, $=money-maker, I=infra, S=short, M=medium, L=long, D=delegate, X=you-only
+const T = (text, tags) => ({ t: text, tags });
+
+const data = [
+  // ============ TIER 1 — DO NOW (from strategy doc) ============
+  {
+    title: "🔥 TIER 1 — Do Now (Highest ROI)",
+    pill: "urgent", tag: "Fix these first — biggest leverage",
+    priority: true,
+    items: [
+      T("Fix Google indexing problem (20 min – 2 hrs, could unlock 50–200 leads/mo)", ["Q","$","S","D"]),
+      T("Finish the Salary vs Living Cost Guide PDF (you're 50% done)", ["P","$","S","D"]),
+      T("Build & script the Weekly Webinar — Thursday 8am Bangkok (US evening)", ["P","$","S","X"]),
+      T("Launch BYU-targeted ads (returned missionaries)", ["Q","$","S","D"]),
+    ]
+  },
+
+  // ============ TIER 2 — Systemization ============
+  {
+    title: "🛠 TIER 2 — Systemization",
+    pill: "biz", tag: "Build the infrastructure once Tier 1 is live",
+    items: [
+      T("Customer Journey Spreadsheet — map Lead → Alumni touchpoints (Scott can help)", ["P","I","M","D"]),
+      T("Hot Lead System — automated sequence for people who interviewed but didn't pay", ["P","$","M","D"]),
+      T("YouTube backlog — script & film first 10 search-intent videos", ["P","$","M","D"]),
+      T("Set up the Founder Dashboard (8 numbers, weekly Friday review)", ["Q","I","S","X"]),
+      T("Add Facebook pixel + retargeting to the funnel", ["Q","$","S","D"]),
+      T("Build the 'Decision Bridge' step between salary guide and apply", ["Q","$","S","X"]),
+      T("Welcome center for booked teachers (excitement + onboarding)", ["P","I","M","D"]),
+    ]
+  },
+
+  // ============ TIER 3 — Strategic Long-Game ============
+  {
+    title: "🌱 TIER 3 — Strategic Moat",
+    pill: "biz", tag: "The flywheel — restart what broke in 2019",
+    items: [
+      T("Thailand TEFL Pilot — run your own in-house course (rebuild 'brand in hearts')", ["P","$","L","X"]),
+      T("Affiliate / Referral program — incentivize teachers to refer & create content", ["P","$","L","D"]),
+      T("Teacher community + meetups (the unreasonable hospitality flywheel)", ["P","I","L","D"]),
+      T("University ambassadors program", ["P","$","M","D"]),
+      T("Career advisors outreach", ["P","$","M","D"]),
+    ]
+  },
+
+  // ============ STOP DOING ============
+  {
+    title: "❌ STOP DOING (Reclaim bandwidth)",
+    pill: "stop", tag: "Kill these to free up Tier 1 focus",
+    stop: true,
+    items: [
+      T("Mike Volpe Project — low pay, high bandwidth, helps a competitor. DROP.", ["Q","I","S","X"]),
+      T("The 50 marketing ideas — if it isn't Google, YouTube, or Webinar, ignore for now", ["Q","I","S","X"]),
+      T("Digital Marketing program as standalone product — defer to teacher ecosystem upsell", ["P","I","L","X"]),
+      T("Remove all funnels from ClickFunnels and cancel the subscription", ["Q","I","S","D"]),
+    ]
+  },
+
+  // ============ Founder Dashboard ============
+  {
+    title: "📊 Founder Dashboard — 8 Weekly Numbers",
+    pill: "dash", tag: "Friday review — manage numbers, not tasks",
+    items: [
+      T("Visitors (top of funnel)", ["Q","I","S","X"]),
+      T("Leads (Salary Guide downloads)", ["Q","I","S","X"]),
+      T("Applications (webinar/email success)", ["Q","I","S","X"]),
+      T("Interviews (show-up rate)", ["Q","I","S","X"]),
+      T("Bookings (revenue events)", ["Q","$","S","X"]),
+      T("Revenue ($$$)", ["Q","$","S","X"]),
+      T("Content Output (YouTube/social posts)", ["Q","I","S","X"]),
+      T("Referrals (flywheel health)", ["Q","I","S","X"]),
+    ]
+  },
+
+  // ============ TEFL Heaven — Offer & Funnel (original) ============
+  {
+    title: "TEFL Heaven — Offer & Funnel",
+    pill: "biz", tag: "Core business",
+    items: [
+      T("Create an SLO (Self-Liquidating Offer) for TEFL Heaven", ["P","$","M","X"]),
+      T("Rebrand the website to teacher-creators with digital marketing front-and-centre", ["P","$","M","D"]),
+      T("Create a really great ad offering a really great lead magnet", ["P","$","S","D"]),
+      T("Cart upsell: $100 one-click upsell on the booking form right after they pay", ["Q","$","S","D"]),
+      T("Improve the program PDFs so they're really great", ["P","I","M","D"]),
+      T("Improve the programs page so each is accurate", ["P","I","M","D"]),
+      T("Create something they receive within 48 hours of booking", ["P","$","M","D"]),
+      T("Do an MBTI offer for TEFL Heaven", ["P","$","M","X"]),
+      T("Cheap TEFL course as a lead magnet", ["P","$","M","D"]),
+    ]
+  },
+
+  // ============ TEFL Heaven — Marketing (original) ============
+  {
+    title: "TEFL Heaven — Marketing & Traffic",
+    pill: "biz", tag: "Demand generation",
+    items: [
+      T("Create YouTube scripts for TEFL Heaven", ["P","$","S","X"]),
+      T("Create mass marketing emails for TEFL Heaven", ["P","$","S","D"]),
+      T("'Day in the Life' advert using SeeDance 2.0", ["P","$","S","D"]),
+      T("More aggressive traffic plan with SeeDance video ads", ["P","$","M","D"]),
+      T("Expand the topic above TEFL Heaven — meta-topic to capture more market", ["P","$","L","X"]),
+      T("Challenge videos series", ["P","$","M","D"]),
+      T("TikTok reels", ["P","$","M","D"]),
+    ]
+  },
+
+  // ============ Content Engine (original) ============
+  {
+    title: "Content Engine",
+    pill: "biz", tag: "10 videos / week — content above all",
+    items: [
+      T("Make content the main thing — force it through", ["P","$","S","X"]),
+      T("Ship 10 YouTube videos every week — build the system", ["P","$","M","D"]),
+      T("Build the Script Day / Filming Day / Editing pipeline", ["P","$","M","D"]),
+      T("Apply the same system to all other content types", ["P","$","M","D"]),
+      T("Go through the AI YouTube 'Watch Later' list", ["Q","I","S","X"]),
+      T("Upload footage for Kevin Snook Reels and tell Kate", ["Q","I","S","D"]),
+      T("New way for Kevin's content — content above all things", ["P","$","M","D"]),
+      T("10 high-priority YouTube topics: salary breakdowns, day-in-life, TEFL scams vs real, cost of living, Thailand vs Korea, how to teach abroad, savings, visa, classroom reality, how to get TEFL job", ["P","$","M","D"]),
+    ]
+  },
+
+  // ============ Websites to Build ============
+  {
+    title: "Websites to Build",
+    pill: "biz", tag: "Web properties (defer until Tier 1 ships)",
+    items: [
+      T("Apologetics website for the CES Letter (+ AI letter to wife)", ["P","I","L","D"]),
+      T("Book of Mormon AI YouTube channel + website", ["P","I","L","D"]),
+      T("MBTI website + YouTube channel", ["P","$","L","D"]),
+      T("Storytelling podcast website + YouTube for Spector Mastermind", ["P","I","L","D"]),
+      T("Kevin Snook website", ["P","I","L","D"]),
+      T("Spector Mastermind website", ["P","I","L","D"]),
+      T("Book of Mormon Red Best Gossamer website", ["P","I","L","D"]),
+      T("Own MBTI + Big Five website with own test, ways to work on weaknesses ($9.99/mo tier)", ["P","$","L","D"]),
+    ]
+  },
+
+  // ============ AI Workshops & Funnels ============
+  {
+    title: "AI Workshops & Funnels",
+    pill: "biz", tag: "In-person + digital",
+    items: [
+      T("Build funnels for AI in-person workshops", ["P","$","M","D"]),
+      T("Build lead magnets for the workshops", ["P","$","M","D"]),
+      T("Teach SeeDance, Images 2.0 and Claude", ["P","$","M","X"]),
+      T("Great Facebook advert targeting people at FutureDuck", ["Q","$","S","D"]),
+      T("School on the alternative SKOOL platform", ["P","$","L","D"]),
+    ]
+  },
+
+  // ============ Storytelling & Language Apps ============
+  {
+    title: "Storytelling & Language Apps",
+    pill: "biz", tag: "Product ideas",
+    items: [
+      T("Add mnemonics to the language apps", ["P","I","M","D"]),
+      T("Develop Ammon stories — create characters", ["P","I","M","D"]),
+      T("Get the language apps into the kids' hands", ["Q","I","S","X"]),
+      T("Ammon / Book of Mormon graphic novel", ["P","I","L","D"]),
+      T("English language storytelling characters — green screen company", ["P","$","L","D"]),
+      T("Improve the Ammon graphic novel and launch it", ["P","I","M","D"]),
+    ]
+  },
+
+  // ============ Personal — Spiritual & Discipline ============
+  {
+    title: "Personal — Spiritual & Discipline",
+    pill: "life", tag: "Daily practice",
+    items: [
+      T("Always follow the majors and minors", ["Q","I","S","X"]),
+      T("Schedule daily time to read visions and apply them", ["Q","I","S","X"]),
+      T("Guitar daily", ["Q","I","S","X"]),
+      T("Tie daily", ["Q","I","S","X"]),
+      T("Pay tithing — really important", ["Q","I","S","X"]),
+      T("Record old memories of me when I was younger", ["P","I","M","X"]),
+    ]
+  },
+
+  // ============ Personal — Health & Admin ============
+  {
+    title: "Personal — Health & Admin",
+    pill: "life", tag: "Life maintenance",
+    items: [
+      T("Get back on the wagon of health and fitness", ["P","I","M","X"]),
+      T("Get driver's licence", ["Q","I","S","X"]),
+      T("Move my address for my debts", ["Q","I","S","X"]),
+      T("Improve the 'hot beats'", ["Q","I","S","X"]),
+    ]
+  },
+
+  // ============ Leverage & Focus ============
+  {
+    title: "Leverage & Focus (ENTP completion rules)",
+    pill: "urgent", tag: "Start → Finish → Publish → Next",
+    items: [
+      T("Work only on highest-leverage things — money + time", ["Q","$","S","X"]),
+      T("Focus on leads and sales right now", ["Q","$","S","X"]),
+      T("Continue building images for the website", ["P","I","M","D"]),
+      T("Run all Kevin coaching calls through AI to extract own frameworks", ["P","I","M","D"]),
+      T("Do the Digital Marketing program (money-creating activity)", ["P","$","M","X"]),
+      T("Create your own Tide Program", ["P","$","L","X"]),
+      T("Build an application of Drucker's 'Effective Executive'", ["P","I","L","X"]),
+      T("Ask Jonny West what you'll be doing on Saturday", ["Q","I","S","X"]),
+    ]
+  },
+];
+
+const board = document.getElementById('board');
+const STORAGE = 'mm_tasks_v2';
+const state = JSON.parse(localStorage.getItem(STORAGE) || '{}');
+
+const TAG_LABEL = {
+  P: ["b-project","project"],
+  Q: ["b-quick","quick task"],
+  "$": ["b-money","$ money-maker"],
+  I: ["b-infra","infra/personal"],
+  S: ["b-short","short-term"],
+  M: ["b-medium","mid-term"],
+  L: ["b-long","long-term"],
+  D: ["b-leverage","delegate"],
+  X: ["b-self","you only"],
+};
+const FILTER_MAP = { project:"P", quick:"Q", money:"$", short:"S", medium:"M", long:"L", leverage:"D", self:"X" };
+
+let total = 0;
+data.forEach((sec, si) => {
+  const card = document.createElement('section');
+  card.className = 'card' + (sec.priority ? ' priority' : '') + (sec.stop ? ' stop' : '');
+  card.innerHTML = `<h2>${sec.title} <span class="pill ${sec.pill}">${sec.pill}</span></h2><div class="tag">${sec.tag}</div>`;
+  const ul = document.createElement('ul');
+  ul.className = 'tasks';
+  sec.items.forEach((task, ti) => {
+    const id = `s${si}_t${ti}`;
+    const checked = !!state[id];
+    total++;
+    const li = document.createElement('li');
+    li.dataset.tags = task.tags.join(',');
+    if (checked) li.classList.add('done');
+    const badges = task.tags.map(tg => {
+      const [cls,lbl] = TAG_LABEL[tg] || ["b-infra",tg];
+      return `<span class="badge ${cls}">${lbl}</span>`;
+    }).join('');
+    li.innerHTML = `<input type="checkbox" id="${id}" ${checked ? 'checked' : ''}/>
+      <label for="${id}">
+        <span class="task-text">${task.t}</span>
+        <span class="badges">${badges}</span>
+      </label>`;
+    li.querySelector('input').addEventListener('change', e => {
+      state[id] = e.target.checked;
+      localStorage.setItem(STORAGE, JSON.stringify(state));
+      li.classList.toggle('done', e.target.checked);
+      updateCount();
+    });
+    ul.appendChild(li);
+  });
+  card.appendChild(ul);
+  board.appendChild(card);
+});
+
+function updateCount() {
+  let d = 0;
+  document.querySelectorAll('ul.tasks input[type=checkbox]').forEach(c => { if (c.checked) d++; });
+  document.getElementById('count').textContent = `${d} of ${total} done`;
+}
+function resetAll() {
+  if (!confirm('Reset all progress?')) return;
+  localStorage.removeItem(STORAGE);
+  location.reload();
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const f = btn.dataset.f;
+    document.querySelectorAll('ul.tasks li').forEach(li => {
+      if (f === 'all') { li.classList.remove('hidden'); return; }
+      const tagCode = FILTER_MAP[f];
+      const has = li.dataset.tags.split(',').includes(tagCode);
+      li.classList.toggle('hidden', !has);
+    });
+    document.querySelectorAll('section.card').forEach(card => {
+      const visible = card.querySelectorAll('ul.tasks li:not(.hidden)').length;
+      card.style.display = visible ? '' : 'none';
+    });
+  });
+});
+
+updateCount();
+</script>
+</body>
+</html>

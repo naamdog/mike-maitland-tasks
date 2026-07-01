@@ -244,7 +244,7 @@
       <div class="prac-list" id="prac-list"></div>
     </details>
     <div style="margin-top:var(--s5)">
-      <button class="btn ghost block" id="weekly-btn">🧭 Weekly Reset</button>
+      <button class="btn ghost block" id="weekly-btn">🧭 Weekly Check-in</button>
     </div>
   </section>
 
@@ -865,7 +865,7 @@ function openMenu(){
   const remindersOn=!!(STATE.settings&&STATE.settings.remindersOn);
   openSheet(`<h2>Scribbler</h2>
     <div class="sheet-actions">
-      <button class="menu-item" data-m="weekly">🧭 Weekly Reset</button>
+      <button class="menu-item" data-m="weekly">🧭 Weekly Check-in</button>
       <button class="menu-item" data-m="sync">☁️ Sync — ${hasKey?'on (change code)':'set up on this device'}</button>
       <button class="menu-item" data-m="reminders">🔔 Reminders — ${remindersOn?'on (turn off)':'turn on'}</button>
       <button class="menu-item" data-m="export">⬇︎ Export backup</button>
@@ -938,7 +938,7 @@ function revList(list,kind){
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
       <button class="btn primary" style="flex:1;min-width:90px" data-rev-next="${t.id}">→ Next</button>
       <button class="btn ghost" style="flex:1;min-width:90px" data-rev-someday="${t.id}">Someday</button>
-      <button class="btn ghost" data-rev-drop="${t.id}">Remove</button>
+      <button class="btn ghost" data-rev-drop="${t.id}">Let it go</button>
     </div></div>`).join('');
 }
 function revDone(){
@@ -955,13 +955,13 @@ function revFocusPick(){
 }
 function openReview(){ revStep=0; document.getElementById('review').classList.add('show'); renderReview(); }
 function closeReview(){ document.getElementById('review').classList.remove('show'); renderAll(); }
-function revNext(){ if(revStep<REV_STEPS.length-1){ revStep++; renderReview(); } else { closeReview(); go('focus'); showToast('Weekly reset complete 🌿'); } }
+function revNext(){ if(revStep<REV_STEPS.length-1){ revStep++; renderReview(); } else { closeReview(); go('focus'); showToast('Weekly check-in complete 🌿'); } }
 function revPrev(){ if(revStep>0){ revStep--; renderReview(); } else closeReview(); }
 function renderReview(){
   const s=REV_STEPS[revStep];
   const dots=REV_STEPS.map((_,i)=>`<i class="${i<=revStep?'on':''}"></i>`).join('');
   document.getElementById('review').innerHTML=`
-    <div class="rev-head"><div class="rev-step-num">${s.n}</div><button class="icon-btn" onclick="closeReview()" aria-label="Close weekly reset">×</button></div>
+    <div class="rev-head"><div class="rev-step-num">${s.n}</div><button class="icon-btn" onclick="closeReview()" aria-label="Close weekly check-in">×</button></div>
     <div class="rev-body">
       <div class="progress">${dots}</div>
       <div class="rev-h">${s.h}</div>

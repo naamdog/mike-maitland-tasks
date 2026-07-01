@@ -23,7 +23,7 @@ function buildPayload(frogTitle) {
   if (weekday === "Fri") {
     let body = "5 calm minutes: choose next week's frog.";
     if (frogTitle) body += " Today's frog: " + frogTitle;
-    return { title: "Weekly Reset \u{1F9ED}", body, url: "/" };
+    return { title: "Weekly Check-in \u{1F9ED}", body, url: "/" };
   }
   if (frogTitle) {
     return {

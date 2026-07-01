@@ -2,7 +2,7 @@
    Shell = cache-first (installable / offline).
    Data (data/*.json, version.json) = network-first so new inbox items always appear. */
 
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 const SHELL_CACHE = 'scribbler-shell-v' + APP_VERSION;
 const DATA_CACHE  = 'scribbler-data-v1';
 

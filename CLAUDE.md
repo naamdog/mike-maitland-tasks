@@ -59,11 +59,41 @@ Bump `appVersion` in **both** `version.json` and the `APP_VERSION` constant at t
 or add tasks here. **Keep every existing `id` stable** — an id is the permanent handle for a
 task's saved progress. Changing an id orphans that task's state. New tasks use `seed-<slug>`.
 
+## Cloud sync + push reminders (v1.1.0)
+The app now has a tiny backend: Vercel serverless functions in `api/` + two Neon
+Postgres tables (`scribbler_state`, `scribbler_push_subs` — shared Neon instance
+with the Visions app). Env vars live in the Vercel project `scribbler-tasks`
+(production): `DATABASE_URL`, `SYNC_SECRET`, `CRON_SECRET`, `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. **Never commit any of these.**
+
+- `api/state.js` — GET/PUT the whole localStorage state blob (row id `mike`),
+  auth via `x-sync-key: <SYNC_SECRET>`. The client merges task-by-task using
+  per-task `updatedAt`, so devices never clobber each other.
+- `api/subscribe.js` — GET returns the VAPID public key; POST/DELETE store or
+  remove a Web-Push subscription (auth required).
+- `api/remind.js` — hit daily by Vercel Cron (00:00 UTC = 07:00 Bangkok, see
+  `crons` in vercel.json). Sends "Today's frog 🐸 <title>" (Fridays: Weekly
+  Reset nudge). `?dry=1` previews without sending. Prunes dead subscriptions.
+- Mike enables sync per device via ⋯ menu → Sync, entering his sync code
+  (= SYNC_SECRET). Reminders require sync + (on iPhone) the installed PWA.
+
+## Tests — run them before shipping app changes
+`npm install && npx playwright test` runs a 10-test Playwright suite
+(`tests/scribbler.spec.js`) against a throwaway copy of the site in
+`.test-site/`. It covers: merge idempotency, Claude-push preserving progress,
+WIP-3 focus limit, undo, un-done restoring stage, capture persistence,
+collapse persistence, practice day-rollover, export. GitHub Actions
+(`.github/workflows/tests.yml`) runs it on every push to main — **keep it
+green**. If you change UI ids/flows in index.html, update the tests.
+
 ## Files
-- `index.html` — the whole app (inline CSS + JS).
+- `index.html` — the whole app (inline CSS + JS, including sync/push client).
 - `data/seed.json` — pre-organized tasks + practices (initial defaults only; user's localStorage wins after any edit).
-- `data/inbox.json` — the capture queue you append to.
+- `data/inbox.json` — the capture queue you append to (Claude + the Visions app both append here).
 - `version.json` — `{ appVersion, dataVersion }`.
-- `sw.js` — service worker (shell cache-first, data network-first).
+- `sw.js` — service worker (shell cache-first, data network-first, push handlers; never caches `/api/`).
+- `api/` — serverless functions (sync + reminders), see above.
+- `tests/`, `playwright.config.js`, `.github/workflows/tests.yml` — e2e suite + CI.
 - `manifest.json`, `icons/*` — PWA install assets.
-- `vercel.json` — no-cache headers on data + service worker.
+- `vercel.json` — no-cache headers on data + service worker; daily reminder cron.
+- `package.json` — api deps (@neondatabase/serverless, web-push) + Playwright.

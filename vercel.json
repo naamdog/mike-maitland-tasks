@@ -1,4 +1,7 @@
 {
+  "crons": [
+    { "path": "/api/remind", "schedule": "0 0 * * *" }
+  ],
   "headers": [
     {
       "source": "/data/(.*)",

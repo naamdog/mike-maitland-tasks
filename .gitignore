@@ -1,3 +1,8 @@
 .playwright-mcp/
 *.local
 .vercel
+node_modules/
+.test-site/
+playwright-report/
+test-results/
+package-lock.json

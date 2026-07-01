@@ -353,10 +353,118 @@ function saveState(){
     const prev=localStorage.getItem(STORE_KEY);
     if(prev) localStorage.setItem(BAK_KEY, prev);
     STATE.lastOpened=nowISO();
+    try{ STATE.frogTitle = (STATE.focusId && MODEL[STATE.focusId]) ? MODEL[STATE.focusId].title : null; }catch(e){}
     localStorage.setItem(STORE_KEY, JSON.stringify(STATE));
+    schedulePushSync();
   }catch(e){ showToast("Storage full — export a backup soon."); }
 }
 function ensureTask(id){ if(!STATE.tasks[id]) STATE.tasks[id]={}; return STATE.tasks[id]; }
+
+/* ================= cloud sync =================
+   Whole-state sync via /api/state, guarded by a sync code the user enters once
+   per device (stored outside STATE so it never syncs). Task-level merge by
+   updatedAt so two devices can't clobber each other's edits. Best-effort:
+   offline or missing code -> app works exactly as before. */
+const SYNC_KEY_LS='scribbler.sync.key';
+let syncTimer=null, lastPushed='', syncErrorShown=false;
+
+function getSyncKey(){ try{ return localStorage.getItem(SYNC_KEY_LS)||''; }catch(e){ return ''; } }
+
+function schedulePushSync(){
+  if(!getSyncKey()) return;
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(pushSync, 1500);
+}
+async function pushSync(){
+  const key=getSyncKey(); if(!key) return;
+  try{
+    const body=JSON.stringify({state: STATE});
+    if(body===lastPushed) return;
+    const r=await fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json','x-sync-key':key},body});
+    if(r.status===401){ if(!syncErrorShown){ syncErrorShown=true; showToast('Sync code looks wrong — check ⋯ menu'); } return; }
+    if(r.ok) lastPushed=body;
+  }catch(e){ /* offline — next save retries */ }
+}
+async function pullSync(){
+  const key=getSyncKey(); if(!key) return;
+  try{
+    const r=await fetch('/api/state',{headers:{'x-sync-key':key}});
+    if(r.status===401){ if(!syncErrorShown){ syncErrorShown=true; showToast('Sync code looks wrong — check ⋯ menu'); } return; }
+    if(!r.ok) return;
+    const j=await r.json();
+    if(!j || !j.state) { pushSync(); return; } // nothing remote yet — seed it
+    const merged=mergeRemoteState(STATE, normalizeState(j.state));
+    STATE=merged;
+    saveState(); buildFromState(); renderAll();
+  }catch(e){ /* offline */ }
+}
+function mergeRemoteState(local, remote){
+  const out=normalizeState(JSON.parse(JSON.stringify(local)));
+  const newer=((remote.lastOpened||'')>(local.lastOpened||''))?remote:local;
+  // tasks: per-id, newest updatedAt wins
+  const ids=new Set([...Object.keys(local.tasks||{}),...Object.keys(remote.tasks||{})]);
+  ids.forEach(id=>{
+    const a=(local.tasks||{})[id], b=(remote.tasks||{})[id];
+    if(a&&b) out.tasks[id]=((b.updatedAt||'')>(a.updatedAt||''))?b:a;
+    else out.tasks[id]=a||b;
+  });
+  out.seenIds=Array.from(new Set([...(local.seenIds||[]),...(remote.seenIds||[])]));
+  out.focusIds=(newer.focusIds||[]).slice(0,FOCUS_LIMIT);
+  out.focusId=newer.focusId||null;
+  out.frogTitle=newer.frogTitle||null;
+  // practices: newer date wins; same date -> union today's ticks, max streaks
+  const lp=local.practices, rp=remote.practices;
+  if((rp.date||'')>(lp.date||'')) out.practices=rp;
+  else if(rp.date===lp.date){
+    out.practices={date:lp.date, today:Object.assign({},rp.today,lp.today), streaks:{}};
+    const hids=new Set([...Object.keys(lp.streaks||{}),...Object.keys(rp.streaks||{})]);
+    hids.forEach(h=>{
+      const x=(lp.streaks||{})[h], y=(rp.streaks||{})[h];
+      out.practices.streaks[h]=(x&&y)?((y.count||0)>(x.count||0)?y:x):(x||y);
+    });
+    // today's union may re-tick something — keep both devices' completions
+    Object.keys(rp.today||{}).forEach(h=>{ if(rp.today[h]) out.practices.today[h]=true; });
+  }
+  out.practicesList=(newer.practicesList&&newer.practicesList.length)?newer.practicesList:(local.practicesList||remote.practicesList);
+  out.collapsed=newer.collapsed||out.collapsed;
+  out.settings=newer.settings||out.settings;
+  out.lastOpened=newer.lastOpened;
+  return out;
+}
+
+/* ================= push reminders (client) ================= */
+async function enableReminders(){
+  const key=getSyncKey();
+  if(!key){ showToast('Set up sync first — reminders need it'); return; }
+  const isiOSDevice=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(isiOSDevice && !isStandalone()){ alert('On iPhone, reminders only work after you add Scribbler to your Home Screen (Share → Add to Home Screen), then enable them from inside the installed app.'); return; }
+  if(!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)){ showToast('Reminders not supported on this browser'); return; }
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){ showToast('Reminders stay off — permission not given'); return; }
+    const reg=await navigator.serviceWorker.ready;
+    const vr=await fetch('/api/subscribe'); const {publicKey}=await vr.json();
+    const sub=await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlB64ToUint8(publicKey) });
+    const r=await fetch('/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json','x-sync-key':key},body:JSON.stringify({subscription:sub.toJSON()})});
+    if(r.ok){ STATE.settings.remindersOn=true; saveState(); showToast('Reminders on — 7am daily 🐸'); }
+    else showToast('Could not save the reminder — try again');
+  }catch(e){ showToast('Could not enable reminders'); }
+}
+async function disableReminders(){
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(sub){ await fetch('/api/subscribe',{method:'DELETE',headers:{'Content-Type':'application/json','x-sync-key':getSyncKey()},body:JSON.stringify({endpoint:sub.endpoint})}); await sub.unsubscribe(); }
+    STATE.settings.remindersOn=false; saveState(); showToast('Reminders off');
+  }catch(e){ showToast('Could not turn reminders off'); }
+}
+function urlB64ToUint8(s){
+  const pad='='.repeat((4-s.length%4)%4);
+  const b64=(s+pad).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=atob(b64); const arr=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i);
+  return arr;
+}
 
 /* ================= data load + merge ================= */
 async function reloadData(){
@@ -753,17 +861,33 @@ function openTradeoff(pendingId){
   s.querySelector('[data-cancel]').onclick=closeSheet;
 }
 function openMenu(){
+  const hasKey=!!getSyncKey();
+  const remindersOn=!!(STATE.settings&&STATE.settings.remindersOn);
   openSheet(`<h2>Scribbler</h2>
     <div class="sheet-actions">
       <button class="menu-item" data-m="weekly">🧭 Weekly Reset</button>
+      <button class="menu-item" data-m="sync">☁️ Sync — ${hasKey?'on (change code)':'set up on this device'}</button>
+      <button class="menu-item" data-m="reminders">🔔 Reminders — ${remindersOn?'on (turn off)':'turn on'}</button>
       <button class="menu-item" data-m="export">⬇︎ Export backup</button>
       <button class="menu-item" data-m="import">⬆︎ Import backup</button>
       <button class="menu-item" data-m="practices">✎ Manage daily practices</button>
       <button class="menu-item" data-m="reset">↺ Reset everything</button>
     </div>
-    <p class="small muted" style="margin-top:1rem">Your data lives on this device. Export now and then so it's never lost.</p>`);
+    <p class="small muted" style="margin-top:1rem">${hasKey?'Sync is on: your tasks are safely stored in the cloud and shared across your devices.':'Turn on Sync so your tasks are safe even if this device clears its storage.'}</p>`);
   const s=document.getElementById('sheet');
   s.querySelector('[data-m="weekly"]').onclick=()=>{ closeSheet(); openReview(); };
+  s.querySelector('[data-m="sync"]').onclick=()=>{
+    const cur=getSyncKey();
+    const code=prompt(cur?'Your sync code (change it here):':'Enter your sync code (Claude gave you this — same code on every device):', cur||'');
+    if(code===null) return;
+    const trimmed=code.trim();
+    if(!trimmed){ localStorage.removeItem(SYNC_KEY_LS); showToast('Sync off on this device'); closeSheet(); return; }
+    localStorage.setItem(SYNC_KEY_LS, trimmed);
+    syncErrorShown=false; lastPushed='';
+    closeSheet(); showToast('Sync on — pulling your tasks…');
+    pullSync();
+  };
+  s.querySelector('[data-m="reminders"]').onclick=()=>{ closeSheet(); if(remindersOn) disableReminders(); else enableReminders(); };
   s.querySelector('[data-m="export"]').onclick=()=>{ exportBackup(); };
   s.querySelector('[data-m="import"]').onclick=()=>{ importBackup(); };
   s.querySelector('[data-m="practices"]').onclick=()=>{ openPractices(); };
@@ -927,7 +1051,14 @@ async function init(){
   registerSW();
   setupInstallHint();
   await reloadData();
-  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') reloadData(); });
+  pullSync();
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'){ reloadData(); pullSync(); }
+    else { // flush any pending sync before the app is backgrounded
+      const key=getSyncKey();
+      if(key){ clearTimeout(syncTimer); try{ fetch('/api/state',{method:'PUT',keepalive:true,headers:{'Content-Type':'application/json','x-sync-key':key},body:JSON.stringify({state:STATE})}); }catch(e){} }
+    }
+  });
 }
 window.go=go; window.revNext=revNext; window.revPrev=revPrev; window.closeReview=closeReview;
 init();

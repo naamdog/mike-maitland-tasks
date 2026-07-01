@@ -28,6 +28,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-cf98133f-f7d6-452a-978d-75153f291393",
+      "createdAt": "2026-07-01T18:09:00.833Z",
+      "title": "Thus saith the king… organise yourselves",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

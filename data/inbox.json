@@ -14,6 +14,20 @@
       "suggestedOwner": "you",
       "focus": true,
       "source": "claude"
+    },
+    {
+      "id": "vis-TESTINTEGRATION-mr28n1d0",
+      "createdAt": "2026-07-01T15:36:17.902Z",
+      "title": "TEST: Visions→Scribbler integration check",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

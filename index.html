@@ -871,7 +871,6 @@ function openMenu(){
       <button class="menu-item" data-m="export">⬇︎ Export backup</button>
       <button class="menu-item" data-m="import">⬆︎ Import backup</button>
       <button class="menu-item" data-m="practices">✎ Manage daily practices</button>
-      <button class="menu-item" data-m="reset">↺ Reset everything</button>
     </div>
     <p class="small muted" style="margin-top:1rem">${hasKey?'Sync is on: your tasks are safely stored in the cloud and shared across your devices.':'Turn on Sync so your tasks are safe even if this device clears its storage.'}</p>`);
   const s=document.getElementById('sheet');
@@ -891,7 +890,6 @@ function openMenu(){
   s.querySelector('[data-m="export"]').onclick=()=>{ exportBackup(); };
   s.querySelector('[data-m="import"]').onclick=()=>{ importBackup(); };
   s.querySelector('[data-m="practices"]').onclick=()=>{ openPractices(); };
-  s.querySelector('[data-m="reset"]').onclick=()=>{ if(confirm('Reset everything on this device? Export a backup first if unsure.')){ localStorage.removeItem(STORE_KEY); localStorage.removeItem(BAK_KEY); location.reload(); } };
 }
 function openPractices(){
   openSheet(`<h2>Daily practices</h2>

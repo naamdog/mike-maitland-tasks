@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "cap-2026-07-01-red-dot-docs",
+      "createdAt": "2026-07-01T09:12:00Z",
+      "title": "Go through all the documents using Red Dot screen record and explain how all the documents work",
+      "note": "On your mind right now — the one thing.",
+      "suggestedStage": "inbox",
+      "suggestedGroup": "Content",
+      "suggestedType": "project",
+      "suggestedValue": "infra",
+      "suggestedHorizon": "short",
+      "suggestedOwner": "you",
+      "focus": true,
+      "source": "claude"
+    }
+  ]
+}

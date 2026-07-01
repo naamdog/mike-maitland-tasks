@@ -1,0 +1,19 @@
+{
+  "name": "Scribbler",
+  "short_name": "Scribbler",
+  "description": "Mike's calm capture-and-do task companion.",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#FBF7F0",
+  "background_color": "#FBF7F0",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "id": "/",
+  "categories": ["productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

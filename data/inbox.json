@@ -140,6 +140,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-e42c6417-83a5-4595-a44a-ad476e1b6e86",
+      "createdAt": "2026-07-04T14:40:48.792Z",
+      "title": "New year questions - Clark Kegley",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

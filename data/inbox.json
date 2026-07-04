@@ -70,6 +70,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-ea9bf81d-7cf3-4c96-b418-06aae2354295",
+      "createdAt": "2026-07-04T14:32:14.709Z",
+      "title": "Tony Robbins Channelled",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

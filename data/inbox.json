@@ -112,6 +112,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-451eac9b-f06a-47d8-b9dc-a62a8b53139d",
+      "createdAt": "2026-07-04T14:38:33.460Z",
+      "title": "Thoughts",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

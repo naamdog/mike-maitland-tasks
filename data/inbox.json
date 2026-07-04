@@ -56,6 +56,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-fa234561-05a5-4288-b40d-783507a1ee80",
+      "createdAt": "2026-07-04T14:23:28.202Z",
+      "title": "Stake Young Men’s President Practical",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

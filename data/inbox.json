@@ -84,6 +84,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-559e8109-9032-4aa7-9b66-fcfa018bd703",
+      "createdAt": "2026-07-04T14:33:08.413Z",
+      "title": "Ranked advice from ChatGPT",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

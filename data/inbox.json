@@ -168,6 +168,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-be1920fb-0c4c-4e21-91ef-4d061fa604bf",
+      "createdAt": "2026-07-05T09:59:01.693Z",
+      "title": "Write a book for my kids",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

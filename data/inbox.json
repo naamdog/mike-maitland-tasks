@@ -154,6 +154,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-aa8f3425-42a8-4384-930b-17d98dc5c637",
+      "createdAt": "2026-07-05T09:18:16.159Z",
+      "title": "I’m an AI Systems Engineer",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

@@ -182,6 +182,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-c4793651-7de2-4ffe-88ee-05bc117baacb",
+      "createdAt": "2026-07-06T19:06:22.907Z",
+      "title": "🚧 Say No to Anything That Steals Focus",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

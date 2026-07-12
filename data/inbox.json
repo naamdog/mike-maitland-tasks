@@ -210,6 +210,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-264a25c0-df20-4b8d-8cbb-ecf16ff700ce",
+      "createdAt": "2026-07-12T21:39:49.996Z",
+      "title": "Commandments to Fathers - Read Often and Improve",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

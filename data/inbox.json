@@ -224,6 +224,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-c2468939-9555-4f04-9ff2-4947154ab754",
+      "createdAt": "2026-07-15T12:00:42.312Z",
+      "title": "There is no peace for the man who has seen what he could become",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

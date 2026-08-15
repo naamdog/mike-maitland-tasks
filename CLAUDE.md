@@ -1,5 +1,9 @@
 # Scribbler — instructions for Claude
 
+> **Start with [`HANDOFF.md`](HANDOFF.md)** for current state, gotchas, and roadmap.
+> Two rules that bite immediately: **`git pull` first** (the Visions app pushes here on its
+> own), and **run `npx playwright test`** before shipping app changes.
+
 Scribbler is Mike Maitland's personal, calm, mobile-first task PWA. It is a static site
 (HTML/CSS/JS, no backend) deployed on Vercel from this GitHub repo. All user progress lives
 in the browser's `localStorage` on Mike's device — **there is no user data in this repo**, which

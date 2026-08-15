@@ -97,6 +97,8 @@
   .tag.horizon{ background:#EDEBE6; color:#5E564B; }
   .tag.stopdoing{ background:#F6E4E0; color:#9A4433; }
   .tag.new{ background:var(--amber-ink); color:#fff; }
+  .tag.board{ background:var(--accent-tint); color:var(--accent-ink); }
+  .tag.stuck{ background:#F6E4E0; color:#9A4433; }
 
   /* ---- focus ---- */
   .frog{ background:var(--surface); border:2px solid var(--amber); border-radius:20px;
@@ -305,6 +307,13 @@ const STAGE_LABEL={inbox:'Inbox',next:'Next',soon:'Soon',later:'Later',done:'Don
 const HORIZON_LABEL={short:'short-term',mid:'mid-term',long:'long-term'};
 const FOCUS_LIMIT=3;
 const ONE_THING="The ONE thing that makes the rest easier or unnecessary.";
+/* Scribbler Portal — the desktop task board this app mirrors. The board is the
+   source of truth for its own cards; this app is the calm phone window onto it.
+   Overridable per-device via localStorage so a preview deploy can be pointed at
+   without shipping a new build. */
+const PORTAL_URL_LS='scribbler.portal.url';
+const PORTAL_DEFAULT='https://scribbler-portal.vercel.app';
+function portalBase(){ try{ return (localStorage.getItem(PORTAL_URL_LS)||PORTAL_DEFAULT).replace(/\/$/,''); }catch(e){ return PORTAL_DEFAULT; } }
 
 /* ================= state ================= */
 let STATE, MODEL={}, PRACTICES=[], NEW_IDS=new Set(), DATA_VERSION=1;
@@ -323,6 +332,7 @@ function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;
 function defaultState(){
   return { stateVersion:1, lastOpened:nowISO(), seenIds:[], focusId:null, focusIds:[],
     tasks:{}, practices:{date:todayStr(), today:{}, streaks:{}},
+    portal:{cards:[], fetchedAt:null}, portalOutbox:[],
     collapsed:{'board.next':false,'board.soon':true,'board.later':true,'board.someday':true,'board.done':true,'practices':true,'filter':true},
     settings:{activeFilter:[], installHintDismissed:false} };
 }
@@ -334,6 +344,9 @@ function normalizeState(s){
   s.practices=s.practices||d.practices; s.practices.today=s.practices.today||{}; s.practices.streaks=s.practices.streaks||{}; if(!s.practices.date) s.practices.date=todayStr();
   s.collapsed=Object.assign({},d.collapsed,s.collapsed||{});
   s.settings=Object.assign({},d.settings,s.settings||{});
+  s.portal=Object.assign({cards:[],fetchedAt:null}, s.portal||{});
+  if(!Array.isArray(s.portal.cards)) s.portal.cards=[];
+  if(!Array.isArray(s.portalOutbox)) s.portalOutbox=[];
   if(!('practicesList' in s)) s.practicesList=null;
   return s;
 }
@@ -466,6 +479,94 @@ function urlB64ToUint8(s){
   return arr;
 }
 
+/* ================= Scribbler Portal (the task board) =================
+   The board at scribbler-portal.vercel.app owns its own cards; this app is the
+   calm phone window onto them. Two rules keep the two honest:
+
+   1. A card this app has never seen lands in the INBOX badged "new" — exactly
+      like a Claude or Visions capture. Nothing arrives pre-sorted.
+   2. After that, newest-updatedAt wins per card — the same merge rule two
+      phones already use — so neither surface can silently undo the other.
+
+   Changes worth telling the board about (finished, on my mind) queue in
+   STATE.portalOutbox and flush on the next sync, so this works offline. Auth
+   reuses the sync code: if Sync is on, the board is on. No second credential. */
+let portalTimer=null, portalErrorShown=false, portalSig='';
+
+function portalOn(){ return !!getSyncKey(); }
+
+/** Board column -> the stage this app files it under. "In Progress" and
+    "To Do" both read as Next here; the phone has no use for that distinction
+    and must not be able to destroy it by moving a row. */
+function portalStage(c){
+  if(c.status==='done') return 'done';
+  if(c.status==='in_review') return 'soon';
+  return 'next';
+}
+
+function queuePortalChange(id, patch){
+  const t=MODEL[id];
+  if(!t || t.source!=='portal') return;
+  const box=STATE.portalOutbox||(STATE.portalOutbox=[]);
+  const i=box.findIndex(x=>x.id===id);
+  const entry=Object.assign({id}, i>=0?box[i]:{}, patch, {updatedAt:nowISO()});
+  if(i>=0) box[i]=entry; else box.push(entry);
+  schedulePortalSync();
+}
+function schedulePortalSync(){ if(!portalOn()) return; clearTimeout(portalTimer); portalTimer=setTimeout(syncPortal, 1200); }
+
+async function syncPortal(){
+  const key=getSyncKey(); if(!key) return;
+  const base=portalBase();
+  const badKey=()=>{ if(!portalErrorShown){ portalErrorShown=true; showToast('Board sync: that code looks wrong'); } };
+  try{
+    const box=(STATE.portalOutbox||[]).slice();
+    let payload=null;
+    if(box.length){
+      const r=await fetch(base+'/api/scribbler',{method:'POST',headers:{'Content-Type':'application/json','x-sync-key':key},body:JSON.stringify({changes:box})});
+      if(r.status===401){ badKey(); return; }
+      if(r.ok){ payload=await r.json(); STATE.portalOutbox=[]; }
+    }
+    if(!payload){
+      const r=await fetch(base+'/api/scribbler',{headers:{'x-sync-key':key}});
+      if(r.status===401){ badKey(); return; }
+      if(!r.ok) return;
+      payload=await r.json();
+    }
+    if(!payload || !Array.isArray(payload.cards)) return;
+    portalErrorShown=false;
+    STATE.portal={cards:payload.cards, fetchedAt:nowISO()};
+    // Only rebuild when the board actually changed — a no-op poll shouldn't
+    // re-render the screen under Mike's thumb.
+    const sig=payload.cards.map(c=>c.id+':'+c.updatedAt+':'+(c.focus?1:0)).join('|');
+    saveState();
+    if(sig!==portalSig){ portalSig=sig; await reloadData(); }
+  }catch(e){ /* offline — the next open retries */ }
+}
+
+/** Send a locally captured task up to the board, keeping its id so the two
+    sides are the same task rather than a duplicate. */
+async function sendToBoard(id){
+  const key=getSyncKey();
+  if(!key){ showToast('Turn on Sync first — the board needs it'); return; }
+  const t=MODEL[id]; if(!t) return;
+  showToast('Sending to the board…');
+  try{
+    const r=await fetch(portalBase()+'/api/scribbler',{method:'POST',headers:{'Content-Type':'application/json','x-sync-key':key},
+      body:JSON.stringify({capture:{id:t.id, title:t.title, note:t.note||'', area:(t.group&&t.group!=='Inbox')?t.group:'', focus:!!t.focused}})});
+    if(!r.ok){ showToast(r.status===401?'Board sync: that code looks wrong':'Could not reach the board'); return; }
+    const payload=await r.json();
+    if(payload && Array.isArray(payload.cards)){
+      STATE.portal={cards:payload.cards, fetchedAt:nowISO()};
+      portalSig='';
+      // It lives on the board now, so stop treating it as a purely local task.
+      const u=ensureTask(id); u.local=false; delete u.materialized;
+      saveState(); await reloadData();
+    }
+    showToast('On the board 🗂');
+  }catch(e){ showToast('Could not reach the board'); }
+}
+
 /* ================= data load + merge ================= */
 async function reloadData(){
   try{ const v=await (await fetch('/version.json',{cache:'no-store'})).json(); DATA_VERSION=v.dataVersion||1; }catch(e){}
@@ -498,13 +599,50 @@ function buildModel(seed, inbox){
     };
     if(!STATE.seenIds.includes(it.id)) newIds.push(it.id);
   });
+
+  // Portal board cards. Never seen -> Inbox, badged new. Seen -> the board wins
+  // only if it moved more recently than the local override (newest-wins, the
+  // same rule two phones already use), so a local edit is never stamped on.
+  ((STATE.portal&&STATE.portal.cards)||[]).forEach((c,ci)=>{
+    if(!c || !c.id) return;
+    const seen=STATE.seenIds.includes(c.id);
+    const u=STATE.tasks[c.id];
+    if(!seen){
+      // Pin the override now so the very next sync doesn't yank it out of the
+      // Inbox before Mike has had a chance to sort it.
+      const nu=ensureTask(c.id); nu.stage='inbox'; nu.updatedAt=c.updatedAt||nowISO();
+    } else if(u && String(c.updatedAt||'') > String(u.updatedAt||'')){
+      u.stage=portalStage(c);
+      u.done=(c.status==='done');
+      u.completedAt=(c.status==='done')?(u.completedAt||c.updatedAt||nowISO()):null;
+      u.updatedAt=c.updatedAt||nowISO();
+    }
+    base[c.id]={
+      id:c.id, title:c.title, note:c.note||'',
+      group:(c.area||'Board'), type:null, value:null, horizon:null, owner:null,
+      stage: seen? portalStage(c) : 'inbox',
+      isStopDoing:false, priorityTier:c.priority||null, source:'portal',
+      createdAt:c.createdAt||nowISO(),
+      // Board cards sort above the old seeded backlog. The board is where the
+      // live work is decided, so on the phone it has to be the work you see
+      // first — otherwise a card spoken onto the board lands underneath ninety
+      // legacy items and the whole thing reads as broken.
+      order: -1000+ci,
+      onBoard:true, boardStatus:c.status, boardBlocked:!!c.blocked, boardRoutedTo:c.routedTo||'',
+      focusReq: c.focus===true
+    };
+    if(!seen) newIds.push(c.id);
+  });
+
   // materialized (claude items pruned from inbox) + local tasks
   for(const id in STATE.tasks){
     const u=STATE.tasks[id];
     if(!base[id] && u.materialized){ base[id]={...u.materialized, id, source:u.local?'local':'claude'}; }
   }
-  // materialize new claude items so they survive inbox.json pruning
-  newIds.forEach(id=>{ const u=ensureTask(id); if(base[id]) u.materialized={...base[id]}; if(!u.stage) u.stage='inbox'; });
+  // Materialize new claude items so they survive inbox.json pruning. Portal
+  // cards are deliberately NOT snapshotted — they are re-fetched every sync and
+  // cached in STATE.portal, so a snapshot would only ever go stale.
+  newIds.forEach(id=>{ const u=ensureTask(id); if(base[id] && base[id].source!=='portal') u.materialized={...base[id]}; if(!u.stage) u.stage='inbox'; });
   // focus auto-seed from claude focus:true (only if room and never seen)
   newIds.forEach(id=>{
     const b=base[id];
@@ -575,6 +713,7 @@ function setStage(id, stage, opts){
   if(stage==='done'){ u.done=true; u.completedAt=nowISO(); u.preDoneStage=(prev.stage&&prev.stage!=='done')?prev.stage:'next'; removeFocus(id,true); }
   else { u.done=false; u.completedAt=null; }
   saveState(); buildFromState();
+  queuePortalChange(id,{stage});
   if(!opts.silent){
     lastAction=()=>{ Object.assign(ensureTask(id),{stage:prev.stage,done:prev.done,hidden:prev.hidden,preDoneStage:prev.preDoneStage,completedAt:prev.completedAt}); STATE.focusIds=prev.focusIds; STATE.focusId=prev.focusId; saveState(); buildFromState(); renderAll(); };
     if(stage==='done') celebrate();
@@ -608,12 +747,13 @@ function focusTask(id){
   if(STATE.focusIds.includes(id)) return true;
   if(STATE.focusIds.length>=FOCUS_LIMIT){ openTradeoff(id); return false; }
   STATE.focusIds.push(id); if(!STATE.focusId) STATE.focusId=id;
-  saveState(); buildFromState(); renderAll(); showToast('On your mind now'); return true;
+  saveState(); buildFromState(); renderAll(); queuePortalChange(id,{focus:true}); showToast('On your mind now'); return true;
 }
 function removeFocus(id, silent){
   const i=STATE.focusIds.indexOf(id); if(i<0) return;
   STATE.focusIds.splice(i,1);
   if(STATE.focusId===id) STATE.focusId=STATE.focusIds[0]||null;
+  queuePortalChange(id,{focus:false});
   if(!silent){ saveState(); buildFromState(); renderAll(); }
 }
 function makeFrog(id){ if(STATE.focusIds.includes(id)){ STATE.focusId=id; saveState(); buildFromState(); renderAll(); } }
@@ -668,6 +808,8 @@ function renderAll(){ renderFocus(); renderInbox(); renderBoard(); renderNav(); 
 
 function tagsHtml(t){
   let h='';
+  if(t.onBoard) h+=`<span class="tag board">🗂 board</span>`;
+  if(t.boardBlocked) h+=`<span class="tag stuck">stuck</span>`;
   if(t.group && t.group!=='Inbox') h+=`<span class="tag group">${esc(t.group)}</span>`;
   if(t.value==='money') h+=`<span class="tag money">$ money</span>`;
   if(t.owner==='delegate') h+=`<span class="tag owner-delegate">delegate</span>`;
@@ -821,13 +963,21 @@ function openDetail(id){
     ? `<button class="btn ghost block" data-act="unfocus">Take off my mind</button>`
     : `<button class="btn amber block" data-act="focus">☆ Put on my mind (Focus)</button>`;
   const frogBtn = (t.focused && !t.isFrog) ? `<button class="btn ghost block" data-act="frog">👑 Make this the frog</button>` : '';
+  const DEST_LABEL={'abc-crm':'ABC CRM','tefl-heaven':'TEFL Heaven'};
+  // A task that already lives on the board says so; one that doesn't can be
+  // sent up. Both are additive — nothing is ever moved away from this phone.
+  const boardBit = t.onBoard
+    ? `<p class="small muted" style="margin:-.4rem 0 .8rem">On the task board${t.boardRoutedTo?` · already sent to ${DEST_LABEL[t.boardRoutedTo]||t.boardRoutedTo}`:''}.</p>`
+    : '';
+  const sendBtn = t.onBoard ? '' : `<button class="btn ghost block" data-act="send">🗂 Send to the task board</button>`;
   openSheet(`<h2 style="padding-right:1rem">${esc(t.title)}</h2>
     ${t.note?`<p class="muted" style="margin-top:-.4rem">${esc(t.note)}</p>`:''}
     <div class="row-meta" style="margin-bottom:1rem">${tagsHtml(t)}</div>
+    ${boardBit}
     <div class="small muted" style="margin-bottom:.4rem;font-weight:700">Stage</div>
     <div class="stage-grid">${stages.map(s=>`<button class="stage-opt ${t.stage===s?'on':''}" data-stage="${s}">${STAGE_LABEL[s]}</button>`).join('')}</div>
     <div class="sheet-actions">
-      ${focusBtn}${frogBtn}
+      ${focusBtn}${frogBtn}${sendBtn}
       <button class="btn ghost block" data-act="edit">✎ Edit</button>
       <button class="btn danger block" data-act="delete">Remove</button>
     </div>`);
@@ -836,6 +986,7 @@ function openDetail(id){
   s.querySelector('[data-act="focus"]')?.addEventListener('click',()=>{ if(focusTask(id)) closeSheet(); });
   s.querySelector('[data-act="unfocus"]')?.addEventListener('click',()=>{ removeFocus(id); closeSheet(); });
   s.querySelector('[data-act="frog"]')?.addEventListener('click',()=>{ makeFrog(id); closeSheet(); });
+  s.querySelector('[data-act="send"]')?.addEventListener('click',()=>{ closeSheet(); sendToBoard(id); });
   s.querySelector('[data-act="edit"]')?.addEventListener('click',()=>openEdit(id));
   s.querySelector('[data-act="delete"]')?.addEventListener('click',()=>{ hideTask(id); closeSheet(); });
 }
@@ -857,15 +1008,17 @@ function openTradeoff(pendingId){
     <div class="sheet-actions">${items.map(t=>`<button class="btn ghost block" data-swap="${t.id}">Take off: ${esc(t.title)}</button>`).join('')}
       <button class="btn block" style="background:var(--surface-pressed)" data-cancel="1">Cancel</button></div>`);
   const s=document.getElementById('sheet');
-  s.querySelectorAll('[data-swap]').forEach(b=>b.onclick=()=>{ removeFocus(b.dataset.swap,true); STATE.focusIds.push(pendingId); if(!STATE.focusId)STATE.focusId=STATE.focusIds[0]; saveState(); buildFromState(); renderAll(); closeSheet(); showToast('Swapped onto your mind'); });
+  s.querySelectorAll('[data-swap]').forEach(b=>b.onclick=()=>{ removeFocus(b.dataset.swap,true); STATE.focusIds.push(pendingId); if(!STATE.focusId)STATE.focusId=STATE.focusIds[0]; saveState(); buildFromState(); renderAll(); queuePortalChange(pendingId,{focus:true}); closeSheet(); showToast('Swapped onto your mind'); });
   s.querySelector('[data-cancel]').onclick=closeSheet;
 }
 function openMenu(){
   const hasKey=!!getSyncKey();
   const remindersOn=!!(STATE.settings&&STATE.settings.remindersOn);
+  const boardCount=((STATE.portal&&STATE.portal.cards)||[]).filter(c=>c.status!=='done').length;
   openSheet(`<h2>Scribbler</h2>
     <div class="sheet-actions">
       <button class="menu-item" data-m="weekly">🧭 Weekly Check-in</button>
+      <button class="menu-item" data-m="board">🗂 Task board — ${boardCount} card${boardCount===1?'':'s'}</button>
       <button class="menu-item" data-m="sync">☁️ Sync — ${hasKey?'on (change code)':'set up on this device'}</button>
       <button class="menu-item" data-m="reminders">🔔 Reminders — ${remindersOn?'on (turn off)':'turn on'}</button>
       <button class="menu-item" data-m="export">⬇︎ Export backup</button>
@@ -875,6 +1028,7 @@ function openMenu(){
     <p class="small muted" style="margin-top:1rem">${hasKey?'Sync is on: your tasks are safely stored in the cloud and shared across your devices.':'Turn on Sync so your tasks are safe even if this device clears its storage.'}</p>`);
   const s=document.getElementById('sheet');
   s.querySelector('[data-m="weekly"]').onclick=()=>{ closeSheet(); openReview(); };
+  s.querySelector('[data-m="board"]').onclick=()=>{ closeSheet(); syncPortal(); window.open(portalBase(),'_blank','noopener'); };
   s.querySelector('[data-m="sync"]').onclick=()=>{
     const cur=getSyncKey();
     const code=prompt(cur?'Your sync code (change it here):':'Enter your sync code (Claude gave you this — same code on every device):', cur||'');
@@ -1050,8 +1204,9 @@ async function init(){
   setupInstallHint();
   await reloadData();
   pullSync();
+  syncPortal();
   document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible'){ reloadData(); pullSync(); }
+    if(document.visibilityState==='visible'){ reloadData(); pullSync(); syncPortal(); }
     else { // flush any pending sync before the app is backgrounded
       const key=getSyncKey();
       if(key){ clearTimeout(syncTimer); try{ fetch('/api/state',{method:'PUT',keepalive:true,headers:{'Content-Type':'application/json','x-sync-key':key},body:JSON.stringify({state:STATE})}); }catch(e){} }
@@ -1059,6 +1214,7 @@ async function init(){
   });
 }
 window.go=go; window.revNext=revNext; window.revPrev=revPrev; window.closeReview=closeReview;
+window.syncPortal=syncPortal; // exposed so the e2e suite can drive a board poll
 init();
 </script>
 </body>

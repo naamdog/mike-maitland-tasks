@@ -354,3 +354,136 @@ test("10. export backup downloads valid JSON with tasks and seenIds", async ({ p
   expect(Array.isArray(backup.seenIds)).toBe(true);
   expect(backup.seenIds.length).toBeGreaterThan(0);
 });
+
+/* ---------------- Scribbler Portal (task board) sync ---------------- */
+
+const PORTAL_GLOB = "https://scribbler-portal.vercel.app/api/scribbler";
+const SYNC_KEY_LS = "scribbler.sync.key";
+
+const boardCard = (over = {}) => ({
+  id: "sc_board1",
+  title: "Board card one",
+  note: "",
+  status: "todo",
+  suggestedStage: "next",
+  priority: "",
+  area: "TEFL Heaven",
+  dueDate: "",
+  blocked: false,
+  focus: false,
+  routedTo: "",
+  createdAt: "2026-08-01T00:00:00.000Z",
+  updatedAt: "2026-08-01T00:00:00.000Z",
+  ...over,
+});
+
+/**
+ * Boot the app with a stubbed portal.
+ *
+ * `posts` collects every POST body the app sends the board, which is how the
+ * outbox tests assert what the phone reported. The stub always answers with the
+ * current `cards`, mirroring the real bridge (which returns the fresh payload
+ * on both GET and POST).
+ */
+async function bootWithBoard(page, cards, posts = []) {
+  await page.addInitScript(
+    ([k, v]) => localStorage.setItem(k, v),
+    [SYNC_KEY_LS, "test-sync-code"],
+  );
+  // The PWA's own /api/state doesn't exist on the static test server; answer it
+  // so pullSync resolves quietly instead of racing the portal assertions.
+  await page.route("**/api/state", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ state: null }) }),
+  );
+  await page.route(PORTAL_GLOB, async (route) => {
+    const req = route.request();
+    if (req.method() === "POST") posts.push(JSON.parse(req.postData() || "{}"));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, cards, frog: null, counts: {}, focusLimit: 3 }),
+    });
+  });
+  await page.goto("/");
+  await boot(page);
+  await page.waitForFunction(
+    (ids) => {
+      const s = JSON.parse(localStorage.getItem("scribbler.state.v1") || "{}");
+      const got = ((s.portal && s.portal.cards) || []).map((c) => c.id);
+      return ids.every((i) => got.includes(i));
+    },
+    cards.map((c) => c.id),
+  );
+  return posts;
+}
+
+test("11. board cards land in the Inbox badged new, not pre-sorted into Next", async ({ page }) => {
+  await bootWithBoard(page, [boardCard()]);
+
+  await go(page, "inbox");
+  const row = page.locator('#inbox-list [data-open="sc_board1"]');
+  await expect(row).toBeVisible();
+  await expect(row.locator(".tag.new")).toBeVisible();
+
+  // The local override pins it to inbox so the next sync can't yank it out
+  // before it has been triaged.
+  const state = await readState(page);
+  expect(state.tasks["sc_board1"].stage).toBe("inbox");
+});
+
+test("12. finishing a board card on the phone reports it to the board and drains the outbox", async ({ page }) => {
+  const posts = [];
+  await bootWithBoard(page, [boardCard()], posts);
+
+  // Triage it out of the Inbox first, then complete it from the Board.
+  await go(page, "inbox");
+  await page.click('#inbox-list [data-move="sc_board1"]');
+  await dismissToast(page);
+
+  await go(page, "board");
+  await openSection(page, "next");
+  await page.click('#board-sections [data-toggle="sc_board1"]');
+
+  await page.waitForFunction(() => {
+    const s = JSON.parse(localStorage.getItem("scribbler.state.v1") || "{}");
+    return (s.portalOutbox || []).length === 0;
+  });
+
+  const change = posts.flatMap((p) => p.changes || []).find((c) => c.id === "sc_board1" && c.stage === "done");
+  expect(change, "the phone should have told the board it was done").toBeTruthy();
+});
+
+test("13. a board card finished on the board wins over the phone's stale copy", async ({ page }) => {
+  // Seen and sitting in Next on the phone…
+  await bootWithBoard(page, [boardCard()]);
+  await go(page, "inbox");
+  await page.click('#inbox-list [data-move="sc_board1"]');
+  await dismissToast(page);
+
+  let state = await readState(page);
+  expect(state.tasks["sc_board1"].stage).toBe("next");
+
+  // …then the board finishes it, with a strictly newer stamp.
+  await page.unroute(PORTAL_GLOB);
+  await page.route(PORTAL_GLOB, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        cards: [boardCard({ status: "done", suggestedStage: "done", updatedAt: "2030-01-01T00:00:00.000Z" })],
+        frog: null,
+        counts: {},
+        focusLimit: 3,
+      }),
+    }),
+  );
+  await page.evaluate(() => window.syncPortal && window.syncPortal());
+
+  await page.waitForFunction(() => {
+    const s = JSON.parse(localStorage.getItem("scribbler.state.v1") || "{}");
+    return s.tasks["sc_board1"] && s.tasks["sc_board1"].done === true;
+  });
+  state = await readState(page);
+  expect(state.tasks["sc_board1"].stage).toBe("done");
+});

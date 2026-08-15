@@ -3,7 +3,7 @@
 State of play for whoever picks this up next (Claude or Mike).
 **Architecture, data shapes, and the "push a task to the Inbox" procedure live in [`CLAUDE.md`](CLAUDE.md) — read that first.** This file is *current state, gotchas, and what's next*, so it doesn't duplicate them.
 
-Last verified: app v1.1.2 / `dataVersion` 20 / commit `15cd526`.
+Last verified: app v1.2.0 / `dataVersion` 20 / 13 Playwright specs green.
 
 ---
 
@@ -17,7 +17,12 @@ Last verified: app v1.1.2 / `dataVersion` 20 / commit `15cd526`.
 - Changed `data/*.json` → bump `dataVersion` in `version.json`
 - Changed `index.html` or `sw.js` → bump `appVersion` in **both** `version.json` **and** `APP_VERSION` in `sw.js` (they must match, or installed phones keep serving a stale cached app)
 
-**Run the tests before pushing app changes:** `npx playwright test` (10 specs, ~10s). CI runs them on every push to main — keep it green.
+**Run the tests before pushing app changes:** `npx playwright test` (13 specs, ~13s). CI runs them on every push to main — keep it green.
+
+**There are now two repos.** This one is the phone app. The task board lives in
+`../Scribbler Portal` (Vercel project `scribbler-portal`) and has its own
+`CLAUDE.md`. The board is the source of truth for its own cards; this app
+mirrors them.
 
 **Secrets are never in this repo.** Mike's sync code and all env values live in the Vercel project `scribbler-tasks` (production) and in Claude's local memory file. Don't paste them into any tracked file — this repo is **public**.
 
@@ -34,6 +39,31 @@ Last verified: app v1.1.2 / `dataVersion` 20 / commit `15cd526`.
 | Push reminders | armed, 1 device subscribed | `/api/remind?dry=1` → `subCount: 1` |
 | Daily cron | `/api/remind` at `0 0 * * *` UTC (7am Bangkok) | `vercel crons ls` |
 | Visions → Inbox | **live and actively used** | 16 `vis-*` captures, Jul 3→15 |
+| Scribbler Portal | https://scribbler-portal.vercel.app | deployed, 200 |
+| Portal MCP | `/api/mcp`, 11 tools, bearer auth | **needs env — see §2a** |
+| TEFL routing | server-side (token stored in Vercel) | configured |
+| ABC routing | handoff mode (Claude finishes it) | by design, upgradeable |
+
+### 2a. The one thing still to do
+
+The portal is deployed but **inert until two env vars are set** on the
+`scribbler-portal` Vercel project. They are marked *sensitive* on
+`scribbler-tasks`, so they cannot be copied programmatically — they have to be
+pasted once:
+
+```bash
+vercel env add DATABASE_URL production   # same Neon URL as scribbler-tasks
+vercel env add SYNC_SECRET production    # Mike's existing sync code
+vercel deploy --prod --yes
+```
+
+Until then every portal endpoint refuses (the auth helpers return false on an
+empty secret) and the board page shows a first-run explainer rather than a 500 —
+so the deployment is safe to leave sitting there. Verify afterwards with:
+
+```bash
+node "../Scribbler Portal/scripts/smoke.mjs" https://scribbler-portal.vercel.app <sync-code>
+```
 
 Env vars set in Vercel production (6): `DATABASE_URL`, `SYNC_SECRET`, `CRON_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
 
@@ -46,6 +76,14 @@ Env vars set in Vercel production (6): `DATABASE_URL`, `SYNC_SECRET`, `CRON_SECR
 3. **v1.1.0 — sync + reminders + tests**: `api/state.js`, `api/subscribe.js`, `api/remind.js`; client sync engine (task-level merge by `updatedAt`, debounced push, pull on open/resume, keepalive flush); 10-spec Playwright suite + CI.
 4. **v1.1.1** — removed the "Reset everything" button (Mike: *"dont have that incase i press it!!"*).
 5. **v1.1.2** — renamed "Weekly Reset" → **"Weekly Check-in"** everywhere (the word *Reset* read as destructive; the flow deletes nothing). In-review "Remove" → "Let it go".
+6. **v1.2.0 — the Scribbler Portal.** A desktop task board (separate repo,
+   `../Scribbler Portal`) with the TEFL Heaven portal's sidebar + four-column
+   kanban, in Scribbler's own palette. One service, three surfaces: the web
+   board, an **MCP server** so Mike can talk tasks onto it through Claude, and a
+   bridge this phone app mirrors. Cards can be sent on to the ABC CRM and TEFL
+   Heaven boards via their own `add_taskboard_card` MCP tools. This app gained
+   `syncPortal()`, an offline outbox, a **Send to the task board** action, and
+   specs 11–13. See the portal's `CLAUDE.md` for its internals.
 
 ---
 
@@ -83,7 +121,20 @@ Overall **~8/10**. The two structural gaps (durability, reminders) were closed i
 | Engineering safety | 9.0 | add API-layer tests (`api/*.js` are currently untested by CI) |
 | Habit stickiness | 8.0 | "frogs eaten this week" insight card; inbox-count in the daily nudge |
 
-**Best next three:** (1) inbox-triage nudge, (2) two-way Visions sync, (3) API tests.
+**Best next three:** (1) set the portal's two env vars and run its smoke script,
+(2) inbox-triage nudge, (3) API tests.
+
+### Portal follow-ups worth doing
+
+- **ABC CRM server-side routing.** Add `ABC_MCP_URL` + `ABC_MCP_TOKEN` in Vercel
+  and routing flips from handoff to fully autonomous with no code change.
+- **Untested against a live database.** The build, lint and the phone-side specs
+  are green, but the portal's SQL has only ever run against `CREATE TABLE IF NOT
+  EXISTS` in review — `scripts/smoke.mjs` is the first real exercise of it.
+- **Cards deleted on the board linger on the phone** until the next full reload
+  clears them from `STATE.portal`. Deliberate (nothing vanishes from Mike's
+  phone unannounced) but worth revisiting if it gets confusing.
+- **No pagination.** Fine at his volume; revisit past a few hundred cards.
 
 ---
 

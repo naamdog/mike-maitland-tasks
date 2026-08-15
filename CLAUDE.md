@@ -54,6 +54,38 @@ When Mike says something like *"add to my inbox: …"* or *"put this on my mind:
 **Guardrails:** append-only to `items`; never change existing ids; always bump `dataVersion`;
 one task = one object.
 
+## Scribbler Portal — the task board (v1.2.0)
+
+There is now a **desktop task board** at https://scribbler-portal.vercel.app
+(repo: `../Scribbler Portal`, Vercel project `scribbler-portal`). It is a
+four-column kanban with its own MCP server, and it can hand cards on to the ABC
+CRM and TEFL Heaven boards.
+
+**Prefer the board's MCP for new tasks.** `data/inbox.json` still works and the
+Visions app still uses it — don't break it — but for "add this to my board", call
+the portal's `add_card` tool instead. It needs no commit, no `dataVersion` bump,
+and no deploy.
+
+How the two fit together:
+
+- The **board owns its own cards.** This app mirrors them (`syncPortal()` in
+  `index.html`, talking to the portal's `/api/scribbler` with the same
+  `x-sync-key` the PWA already uses — no second credential).
+- A board card this app **has never seen lands in the Inbox badged "new"**,
+  exactly like a Claude or Visions capture. Nothing arrives pre-sorted.
+- After that, **newest `updatedAt` wins per card** — the same merge rule two
+  phones already use. Neither surface can silently undo the other.
+- Board columns map down as `done → done`, `in_review → soon`, everything else
+  → `next`. Upward, only `done` is meaningful; the phone can't demote an
+  In Progress card by moving a row. `focus` (Mike's frog) syncs **both** ways.
+- Local changes queue in `STATE.portalOutbox` and flush on the next sync, so it
+  works offline.
+- Board cards sort **above** the seeded backlog (`order: -1000+i`) — otherwise a
+  card spoken onto the board lands under ninety legacy items and reads as broken.
+- A locally captured task can be pushed up via the detail sheet
+  (**Send to the task board**); it keeps its id, so it becomes the same task on
+  both sides rather than a duplicate.
+
 ## If you change the app UI or logic (`index.html`, `sw.js`)
 Bump `appVersion` in **both** `version.json` and the `APP_VERSION` constant at the top of
 `sw.js` (they must match) so the service worker purges the old cached shell.
@@ -82,11 +114,14 @@ with the Visions app). Env vars live in the Vercel project `scribbler-tasks`
   (= SYNC_SECRET). Reminders require sync + (on iPhone) the installed PWA.
 
 ## Tests — run them before shipping app changes
-`npm install && npx playwright test` runs a 10-test Playwright suite
+`npm install && npx playwright test` runs a 13-test Playwright suite
 (`tests/scribbler.spec.js`) against a throwaway copy of the site in
 `.test-site/`. It covers: merge idempotency, Claude-push preserving progress,
 WIP-3 focus limit, undo, un-done restoring stage, capture persistence,
-collapse persistence, practice day-rollover, export. GitHub Actions
+collapse persistence, practice day-rollover, export, and (11–13) the portal
+board sync — new cards landing in the Inbox badged new, the phone reporting a
+completion back to the board, and the board winning over a stale phone copy.
+The portal is stubbed with `page.route`, so the suite stays offline. GitHub Actions
 (`.github/workflows/tests.yml`) runs it on every push to main — **keep it
 green**. If you change UI ids/flows in index.html, update the tests.
 

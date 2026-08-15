@@ -607,27 +607,47 @@ function buildModel(seed, inbox){
     if(!c || !c.id) return;
     const seen=STATE.seenIds.includes(c.id);
     const u=STATE.tasks[c.id];
+    // The seed/capture entry this card mirrors, if the task already existed here.
+    const prior=base[c.id];
+    // Has the card actually been MOVED on the board since it was created?
+    //
+    // This matters because the board has four columns and this app files things
+    // in six places, so mapping a column back to a stage is lossy. A bulk
+    // migration creates a card per existing task, all untouched — and if those
+    // were allowed to dictate stage, every "Later" task would be dragged into
+    // "Next" and Mike's filing would be destroyed by an import that was only
+    // ever meant to give him a second view of it.
+    //
+    // So an untouched card carries NO opinion about where a task belongs. The
+    // moment it is genuinely dragged on the board, updatedAt outruns createdAt
+    // and the board becomes authoritative, exactly as before.
+    const boardMoved = String(c.updatedAt||'') > String(c.createdAt||'');
     if(!seen){
       // Pin the override now so the very next sync doesn't yank it out of the
       // Inbox before Mike has had a chance to sort it.
       const nu=ensureTask(c.id); nu.stage='inbox'; nu.updatedAt=c.updatedAt||nowISO();
-    } else if(u && String(c.updatedAt||'') > String(u.updatedAt||'')){
+    } else if(u && boardMoved && String(c.updatedAt||'') > String(u.updatedAt||'')){
       u.stage=portalStage(c);
       u.done=(c.status==='done');
       u.completedAt=(c.status==='done')?(u.completedAt||c.updatedAt||nowISO()):null;
       u.updatedAt=c.updatedAt||nowISO();
     }
     base[c.id]={
-      id:c.id, title:c.title, note:c.note||'',
-      group:(c.area||'Board'), type:null, value:null, horizon:null, owner:null,
-      stage: seen? portalStage(c) : 'inbox',
-      isStopDoing:false, priorityTier:c.priority||null, source:'portal',
+      id:c.id, title:c.title, note:c.note||(prior&&prior.note)||'',
+      // Keep the tags this app shows and the board has no concept of, so a
+      // migrated row still reads the same on the phone.
+      group:(c.area||(prior&&prior.group)||'Board'), type:(prior&&prior.type)||null,
+      value:(prior&&prior.value)||null, horizon:(prior&&prior.horizon)||null,
+      owner:(prior&&prior.owner)||null,
+      stage: !seen ? 'inbox' : ((prior && !boardMoved) ? (prior.stage||'inbox') : portalStage(c)),
+      isStopDoing:!!(prior&&prior.isStopDoing), priorityTier:c.priority||null, source:'portal',
       createdAt:c.createdAt||nowISO(),
-      // Board cards sort above the old seeded backlog. The board is where the
-      // live work is decided, so on the phone it has to be the work you see
-      // first — otherwise a card spoken onto the board lands underneath ninety
-      // legacy items and the whole thing reads as broken.
-      order: -1000+ci,
+      // A genuinely NEW board card sorts above the old seeded backlog — the
+      // board is where live work is decided, so a card spoken onto it must not
+      // land underneath ninety legacy items. But a card that merely mirrors a
+      // task this app already had keeps that task's existing position, so a
+      // bulk migration doesn't silently reshuffle the whole list.
+      order: (prior && typeof prior.order==='number') ? prior.order : (-1000+ci),
       onBoard:true, boardStatus:c.status, boardBlocked:!!c.blocked, boardRoutedTo:c.routedTo||'',
       focusReq: c.focus===true
     };

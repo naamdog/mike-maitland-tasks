@@ -453,7 +453,61 @@ test("12. finishing a board card on the phone reports it to the board and drains
   expect(change, "the phone should have told the board it was done").toBeTruthy();
 });
 
-test("13. a board card finished on the board wins over the phone's stale copy", async ({ page }) => {
+test("13. a migrated card does NOT reshuffle a task this app already filed", async ({ page }) => {
+  // NEXT_2 ships in the Next section. Move it to Soon so it has a stage the
+  // board's four columns cannot express, then hand it a matching board card
+  // that has never been dragged (updatedAt === createdAt).
+  await go(page, "board");
+  await openSection(page, "next");
+  await page.click(`#board-sections [data-move="${NEXT_2}"]`);
+  await dismissToast(page);
+  let state = await readState(page);
+  expect(state.tasks[NEXT_2].stage).toBe("soon");
+
+  const stamp = "2026-08-01T00:00:00.000Z";
+  await bootWithBoard(page, [
+    boardCard({ id: NEXT_2, title: "Board copy of a Soon task", createdAt: stamp, updatedAt: stamp }),
+  ]);
+
+  // Untouched card => no opinion. It must still be in Soon, not dragged to Next.
+  state = await readState(page);
+  expect(state.tasks[NEXT_2].stage).toBe("soon");
+  await go(page, "board");
+  await openSection(page, "soon");
+  await expect(page.locator(`details.section[data-sec="board.soon"] [data-open="${NEXT_2}"]`)).toBeVisible();
+});
+
+test("14. …but once the card is actually moved on the board, the board wins", async ({ page }) => {
+  await go(page, "board");
+  await openSection(page, "next");
+  await page.click(`#board-sections [data-move="${NEXT_2}"]`);
+  await dismissToast(page);
+  expect((await readState(page)).tasks[NEXT_2].stage).toBe("soon");
+
+  // updatedAt strictly after createdAt = someone dragged it. Now it is
+  // authoritative, and In Review maps down to Soon… so move it to Done instead
+  // to prove the board's decision actually lands.
+  await bootWithBoard(page, [
+    boardCard({
+      id: NEXT_2,
+      status: "done",
+      suggestedStage: "done",
+      createdAt: "2026-08-01T00:00:00.000Z",
+      updatedAt: "2030-01-01T00:00:00.000Z",
+    }),
+  ]);
+
+  await page.waitForFunction(
+    (id) => {
+      const s = JSON.parse(localStorage.getItem("scribbler.state.v1") || "{}");
+      return s.tasks[id] && s.tasks[id].done === true;
+    },
+    NEXT_2,
+  );
+  expect((await readState(page)).tasks[NEXT_2].stage).toBe("done");
+});
+
+test("15. a board card finished on the board wins over the phone's stale copy", async ({ page }) => {
   // Seen and sitting in Next on the phone…
   await bootWithBoard(page, [boardCard()]);
   await go(page, "inbox");

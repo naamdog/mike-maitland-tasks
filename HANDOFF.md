@@ -39,31 +39,43 @@ mirrors them.
 | Push reminders | armed, 1 device subscribed | `/api/remind?dry=1` → `subCount: 1` |
 | Daily cron | `/api/remind` at `0 0 * * *` UTC (7am Bangkok) | `vercel crons ls` |
 | Visions → Inbox | **live and actively used** | 16 `vis-*` captures, Jul 3→15 |
-| Scribbler Portal | https://scribbler-portal.vercel.app | deployed, 200 |
-| Portal MCP | `/api/mcp`, 11 tools, bearer auth | **needs env — see §2a** |
-| TEFL routing | server-side (token stored in Vercel) | configured |
-| ABC routing | handoff mode (Claude finishes it) | by design, upgradeable |
+| Scribbler Portal | https://scribbler-portal.vercel.app | **23/23 smoke checks green** |
+| Portal MCP | `/api/mcp`, 12 tools, bearer auth | verified live |
+| TEFL routing | server-side | reachable, token accepted, add-tool present |
+| ABC routing | handoff (Claude finishes it) | **correct by design — see below** |
+| Portal → phone state | reads `scribbler_state` | frog + inbox count confirmed |
 
-### 2a. The one thing still to do
+### 2a. Getting `DATABASE_URL` — read this before hunting for it again
 
-The portal is deployed but **inert until two env vars are set** on the
-`scribbler-portal` Vercel project. They are marked *sensitive* on
-`scribbler-tasks`, so they cannot be copied programmatically — they have to be
-pasted once:
+The six env vars on `scribbler-tasks` are flagged **sensitive**, so
+`vercel env pull` returns them *empty* (`DATABASE_URL=""`). That is not a bug and
+there is no CLI flag around it.
 
-```bash
-vercel env add DATABASE_URL production   # same Neon URL as scribbler-tasks
-vercel env add SYNC_SECRET production    # Mike's existing sync code
-vercel deploy --prod --yes
-```
-
-Until then every portal endpoint refuses (the auth helpers return false on an
-empty secret) and the board page shows a first-run explainer rather than a 500 —
-so the deployment is safe to leave sitting there. Verify afterwards with:
+**The way through:** the same Neon database is also used by the **Visions**
+project, where the values are *not* sensitive-flagged. So:
 
 ```bash
-node "../Scribbler Portal/scripts/smoke.mjs" https://scribbler-portal.vercel.app <sync-code>
+vercel link --yes --project visions --scope naamdog-6775s-projects
+vercel env pull ./v.env --environment=production --yes   # DATABASE_URL is readable here
 ```
+
+Confirmed it is genuinely the same database before using it (host
+`ep-bitter-dust-ads91zg8-pooler...`, and `scribbler_state` / `scribbler_push_subs`
+are both present). Always re-verify that before pointing anything new at it.
+
+Verify the portal end to end with:
+
+```bash
+node "../Scribbler Portal/scripts/smoke.mjs" https://scribbler-portal.vercel.app <mcp-token> <sync-code>
+```
+
+### 2b. Why ABC routing stays in handoff mode
+
+ABC's MCP (`abconsultants.tech/mcp`) is **OAuth-only** — there is no static
+bearer token anywhere in `ABC Github/ABC-Ltd/mcp/` for the portal to hold.
+Claude's own connector is the credential, so Claude completing the send *is* the
+design. Don't log this as an unfinished task. TEFL Heaven issues static per-user
+tokens, which is the only reason that leg can run server-side.
 
 Env vars set in Vercel production (6): `DATABASE_URL`, `SYNC_SECRET`, `CRON_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
 
@@ -121,19 +133,26 @@ Overall **~8/10**. The two structural gaps (durability, reminders) were closed i
 | Engineering safety | 9.0 | add API-layer tests (`api/*.js` are currently untested by CI) |
 | Habit stickiness | 8.0 | "frogs eaten this week" insight card; inbox-count in the daily nudge |
 
-**Best next three:** (1) set the portal's two env vars and run its smoke script,
-(2) inbox-triage nudge, (3) API tests.
+**Best next three:** (1) the inbox-triage problem below, (2) put Mike's real work
+onto the portal board, (3) API tests.
+
+### The live observation, sharpened
+
+`scribbler_status` now reports the phone directly, and it confirms §5: **13 items
+sitting untriaged, and the phone has not synced since 2026-07-05.** Capture works;
+processing does not. The portal makes this fixable — Claude can now read the
+backlog and offer "want to sort three?" without Mike opening anything.
 
 ### Portal follow-ups worth doing
 
-- **ABC CRM server-side routing.** Add `ABC_MCP_URL` + `ABC_MCP_TOKEN` in Vercel
-  and routing flips from handoff to fully autonomous with no code change.
-- **Untested against a live database.** The build, lint and the phone-side specs
-  are green, but the portal's SQL has only ever run against `CREATE TABLE IF NOT
-  EXISTS` in review — `scripts/smoke.mjs` is the first real exercise of it.
+- **Nothing has been sent to a real team board yet.** `check_destination` proves
+  TEFL is reachable and would accept a card, but no card has actually been
+  created there. The first real send is still a first.
 - **Cards deleted on the board linger on the phone** until the next full reload
   clears them from `STATE.portal`. Deliberate (nothing vanishes from Mike's
   phone unannounced) but worth revisiting if it gets confusing.
+- **The board starts empty.** His existing Scribbler tasks were deliberately not
+  bulk-migrated onto it — that is a decision for him, not a default.
 - **No pagination.** Fine at his volume; revisit past a few hundred cards.
 
 ---

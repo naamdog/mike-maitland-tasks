@@ -252,6 +252,20 @@
       "suggestedOwner": null,
       "focus": false,
       "source": "visions"
+    },
+    {
+      "id": "vis-c2ae93a9-c741-4261-9e24-76db380ea510",
+      "createdAt": "2026-08-16T18:43:44.534Z",
+      "title": "Constraints for me",
+      "note": "Captured from Visions",
+      "suggestedStage": "inbox",
+      "suggestedGroup": null,
+      "suggestedType": null,
+      "suggestedValue": null,
+      "suggestedHorizon": null,
+      "suggestedOwner": null,
+      "focus": false,
+      "source": "visions"
     }
   ]
 }

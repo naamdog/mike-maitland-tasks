@@ -3,13 +3,13 @@
 State of play for whoever picks this up next (Claude or Mike).
 **Architecture, data shapes, and the "push a task to the Inbox" procedure live in [`CLAUDE.md`](CLAUDE.md) — read that first.** This file is *current state, gotchas, and what's next*, so it doesn't duplicate them.
 
-Last verified: app v1.2.0 / `dataVersion` 20 / 13 Playwright specs green.
+Last verified: app v1.2.3 / `dataVersion` 22 / 16 Playwright specs green.
 
 ---
 
 ## 1. Read this before you touch anything
 
-**Always `git pull` first.** The Visions notes app pushes commits to this repo *on its own*, whenever Mike flags a note "To Do". A local checkout goes stale within days. (Last session started 14 commits behind.)
+**Always `git pull` first.** Less critical than it was: the Visions notes app used to push commits here on its own whenever Mike flagged a note "To Do", and that was **removed on 2026-08-19** (`lib/scribbler-push.ts` deleted in `naamdog/visions`). The To Do flag still works in Visions; it just no longer mirrors here. Nothing writes to this repo autonomously any more.
 
 **Never hand-edit `data/inbox.json` without pulling** — you'll clobber Visions captures. Append only; never reuse or reorder ids.
 
@@ -17,7 +17,7 @@ Last verified: app v1.2.0 / `dataVersion` 20 / 13 Playwright specs green.
 - Changed `data/*.json` → bump `dataVersion` in `version.json`
 - Changed `index.html` or `sw.js` → bump `appVersion` in **both** `version.json` **and** `APP_VERSION` in `sw.js` (they must match, or installed phones keep serving a stale cached app)
 
-**Run the tests before pushing app changes:** `npx playwright test` (13 specs, ~13s). CI runs them on every push to main — keep it green.
+**Run the tests before pushing app changes:** `npx playwright test` (16 specs, ~20s). CI runs them on every push to main — keep it green.
 
 **There are now two repos.** This one is the phone app. The task board lives in
 `../Scribbler Portal` (Vercel project `scribbler-portal`) and has its own
@@ -32,13 +32,13 @@ mirrors them.
 
 | Thing | Status | Evidence |
 |---|---|---|
-| App | https://scribbler-tasks.vercel.app | 200, v1.1.2 |
+| App | https://scribbler-tasks.vercel.app | 200, v1.2.3 |
 | Auto-deploy | Vercel↔GitHub connected; push to `main` ships | verified |
-| CI | GitHub Actions, 10 Playwright specs | green on latest runs |
+| CI | GitHub Actions, 16 Playwright specs | green on latest runs |
 | Cloud sync | Mike's phone is synced | cloud state: 13 tasks, 90 seenIds, frog set |
 | Push reminders | armed, 1 device subscribed | `/api/remind?dry=1` → `subCount: 1` |
 | Daily cron | `/api/remind` at `0 0 * * *` UTC (7am Bangkok) | `vercel crons ls` |
-| Visions → Inbox | **live and actively used** | 16 `vis-*` captures, Jul 3→15 |
+| Visions → Inbox | **removed 2026-08-19** | 18 `vis-*` captures remain in the inbox; no new ones will arrive |
 | Scribbler Portal | https://scribbler-portal.vercel.app | **23/23 smoke checks green** |
 | Portal MCP | `/api/mcp`, 12 tools, bearer auth | verified live |
 | TEFL routing | server-side | reachable, token accepted, add-tool present |

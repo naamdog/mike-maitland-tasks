@@ -1,8 +1,9 @@
 # Scribbler — instructions for Claude
 
 > **Start with [`HANDOFF.md`](HANDOFF.md)** for current state, gotchas, and roadmap.
-> Two rules that bite immediately: **`git pull` first** (the Visions app pushes here on its
-> own), and **run `npx playwright test`** before shipping app changes.
+> Two rules that bite immediately: **`git pull` first**, and **run `npx playwright test`**
+> before shipping app changes. (The Visions app used to push here autonomously; that was
+> removed on 2026-08-19, so the repo is no longer written to behind your back.)
 
 Scribbler is Mike Maitland's personal, calm, mobile-first task PWA. It is a static site
 (HTML/CSS/JS, no backend) deployed on Vercel from this GitHub repo. All user progress lives
@@ -61,10 +62,10 @@ There is now a **desktop task board** at https://scribbler-portal.vercel.app
 four-column kanban with its own MCP server, and it can hand cards on to the ABC
 CRM and TEFL Heaven boards.
 
-**Prefer the board's MCP for new tasks.** `data/inbox.json` still works and the
-Visions app still uses it — don't break it — but for "add this to my board", call
-the portal's `add_card` tool instead. It needs no commit, no `dataVersion` bump,
-and no deploy.
+**Use the board's MCP for new tasks.** `data/inbox.json` still works and still
+holds 18 historical Visions captures, but nothing writes to it automatically any
+more — for "add this to my board", call the portal's `add_card` tool. No commit,
+no `dataVersion` bump, no deploy.
 
 How the two fit together:
 
@@ -72,7 +73,7 @@ How the two fit together:
   `index.html`, talking to the portal's `/api/scribbler` with the same
   `x-sync-key` the PWA already uses — no second credential).
 - A board card this app **has never seen lands in the Inbox badged "new"**,
-  exactly like a Claude or Visions capture. Nothing arrives pre-sorted.
+  exactly like a Claude capture. Nothing arrives pre-sorted.
 - After that, **newest `updatedAt` wins per card** — the same merge rule two
   phones already use. Neither surface can silently undo the other.
 - Board columns map down as `done → done`, `in_review → soon`, everything else
@@ -114,12 +115,12 @@ with the Visions app). Env vars live in the Vercel project `scribbler-tasks`
   (= SYNC_SECRET). Reminders require sync + (on iPhone) the installed PWA.
 
 ## Tests — run them before shipping app changes
-`npm install && npx playwright test` runs a 13-test Playwright suite
+`npm install && npx playwright test` runs a 16-test Playwright suite
 (`tests/scribbler.spec.js`) against a throwaway copy of the site in
 `.test-site/`. It covers: merge idempotency, Claude-push preserving progress,
 WIP-3 focus limit, undo, un-done restoring stage, capture persistence,
-collapse persistence, practice day-rollover, export, and (11–13) the portal
-board sync — new cards landing in the Inbox badged new, the phone reporting a
+collapse persistence, practice day-rollover, export, priority tags (16), and
+(11–15) the portal board sync — new cards landing in the Inbox badged new, the phone reporting a
 completion back to the board, and the board winning over a stale phone copy.
 The portal is stubbed with `page.route`, so the suite stays offline. GitHub Actions
 (`.github/workflows/tests.yml`) runs it on every push to main — **keep it
@@ -128,7 +129,7 @@ green**. If you change UI ids/flows in index.html, update the tests.
 ## Files
 - `index.html` — the whole app (inline CSS + JS, including sync/push client).
 - `data/seed.json` — pre-organized tasks + practices (initial defaults only; user's localStorage wins after any edit).
-- `data/inbox.json` — the capture queue you append to (Claude + the Visions app both append here).
+- `data/inbox.json` — the capture queue you append to. **Claude only now**: the Visions push was removed on 2026-08-19 (it committed a file per note and collided with live sessions). Prefer the portal's `add_card` MCP tool over editing this at all.
 - `version.json` — `{ appVersion, dataVersion }`.
 - `sw.js` — service worker (shell cache-first, data network-first, push handlers; never caches `/api/`).
 - `api/` — serverless functions (sync + reminders), see above.

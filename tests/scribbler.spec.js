@@ -507,6 +507,35 @@ test("14. …but once the card is actually moved on the board, the board wins", 
   expect((await readState(page)).tasks[NEXT_2].stage).toBe("done");
 });
 
+test("16. board priority is visible on the phone, and the High chip filters by it", async ({ page }) => {
+  await bootWithBoard(page, [
+    boardCard({ id: "sc_hi", title: "Urgent board thing", priority: "high" }),
+    boardCard({ id: "sc_lo", title: "Someday board thing", priority: "low" }),
+  ]);
+
+  // Triage both out of the Inbox so they sit on the Board together.
+  await go(page, "inbox");
+  await page.click('#inbox-list [data-move="sc_hi"]');
+  await dismissToast(page);
+  await page.click('#inbox-list [data-move="sc_lo"]');
+  await dismissToast(page);
+
+  await go(page, "board");
+  await openSection(page, "next");
+  // High is tagged; low deliberately is not — a backlog of "low" tags is noise.
+  await expect(page.locator('#board-sections [data-id="sc_hi"] .tag.pri-high')).toBeVisible();
+  // (it still carries the "board" tag — assert on the priority tag specifically)
+  await expect(page.locator('#board-sections [data-id="sc_lo"] .tag.pri-low')).toHaveCount(0);
+  await expect(page.locator('#board-sections [data-id="sc_lo"] .tag.board')).toBeVisible();
+
+  // The High chip narrows the board to just the urgent one.
+  const filter = page.locator("#filter-details");
+  if (!(await filter.evaluate((el) => el.open))) await filter.locator("summary").click();
+  await page.click('#filter-chips [data-f="high"]');
+  await expect(page.locator('#board-sections [data-id="sc_hi"]')).toBeVisible();
+  await expect(page.locator('#board-sections [data-id="sc_lo"]')).toHaveCount(0);
+});
+
 test("15. a board card finished on the board wins over the phone's stale copy", async ({ page }) => {
   // Seen and sitting in Next on the phone…
   await bootWithBoard(page, [boardCard()]);

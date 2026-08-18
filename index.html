@@ -98,6 +98,8 @@
   .tag.stopdoing{ background:#F6E4E0; color:#9A4433; }
   .tag.new{ background:var(--amber-ink); color:#fff; }
   .tag.board{ background:var(--accent-tint); color:var(--accent-ink); }
+  .tag.pri-high{ background:#F6E4E0; color:#9A4433; }
+  .tag.pri-medium{ background:var(--amber-tint); color:var(--amber-ink); }
   .tag.stuck{ background:#F6E4E0; color:#9A4433; }
 
   /* ---- focus ---- */
@@ -269,6 +271,7 @@
     <details class="filter" id="filter-details">
       <summary>⛃ Filter <span class="chev">›</span></summary>
       <div class="chips" id="filter-chips">
+        <button class="chip" data-f="high">! High</button>
         <button class="chip" data-f="money">$ Money</button>
         <button class="chip" data-f="infra">Infra</button>
         <button class="chip" data-f="delegate">Delegate</button>
@@ -807,6 +810,7 @@ function byStage(stage){
   const f=STATE.settings.activeFilter||[];
   if(f.length && stage!=='inbox'){
     list=list.filter(t=> f.every(k=>{
+      if(k==='high') return t.priorityTier==='high';
       if(k==='money') return t.value==='money';
       if(k==='infra') return t.value==='infra';
       if(k==='delegate') return t.owner==='delegate';
@@ -828,6 +832,10 @@ function renderAll(){ renderFocus(); renderInbox(); renderBoard(); renderNav(); 
 
 function tagsHtml(t){
   let h='';
+  // High and medium only. "Low" is the resting state of a backlog — tagging
+  // thirty-odd things "low" is noise that tells you nothing, and this app's
+  // whole job is to be quiet. Absence of a tag means it isn't urgent.
+  if(t.priorityTier==='high'||t.priorityTier==='medium') h+=`<span class="tag pri-${t.priorityTier}">${t.priorityTier}</span>`;
   if(t.onBoard) h+=`<span class="tag board">🗂 board</span>`;
   if(t.boardBlocked) h+=`<span class="tag stuck">stuck</span>`;
   if(t.group && t.group!=='Inbox') h+=`<span class="tag group">${esc(t.group)}</span>`;
